@@ -1,0 +1,8 @@
+framework module "Appactions" {
+	header "ref.h"
+    header "Appactions.objc.h"
+    header "Universe.objc.h"
+    header "Appactions.h"
+
+    export *
+}

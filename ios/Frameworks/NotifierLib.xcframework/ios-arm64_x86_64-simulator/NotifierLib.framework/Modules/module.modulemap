@@ -1,8 +1,0 @@
-framework module "NotifierLib" {
-	header "ref.h"
-    header "Appactions.objc.h"
-    header "Universe.objc.h"
-    header "NotifierLib.h"
-
-    export *
-}

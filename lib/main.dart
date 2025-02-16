@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart' show rootBundle, MethodChannel;
 
 void main() {
   runApp(SaleNotifierApp());
@@ -29,6 +29,7 @@ Future<String> loadAsset() async {
 }
 
 class _GameListScreenState extends State<GameListScreen> {
+  static final platform = MethodChannel('gonative_channel');
   // Change the type to List<Map<String, dynamic>> for flexibility
   List<Map<String, dynamic>> games = [];
 
@@ -43,8 +44,14 @@ class _GameListScreenState extends State<GameListScreen> {
     try {
       String contents = await loadAsset();
 
+      final String gameInfo = await platform.invokeMethod('getInformation', {
+        "url":
+            "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Donkey-Kong-Country-Returns-HD-2590475.html"
+      });
+
       // Debugging: print the contents of the file
-      print("File contents: $contents");
+      // print("File contents: $contents");
+      print("Game info: $gameInfo");
 
       // Parse the JSON string into a list of game objects
       List<dynamic> gameList = json.decode(contents);
