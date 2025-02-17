@@ -15,7 +15,9 @@ class SaleNotifierApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Sale Notifier',
-      theme: ThemeData(primarySwatch: Colors.blue),
+      theme: ThemeData.light(), // Light theme
+      darkTheme: ThemeData.dark(), // Dark theme
+      themeMode: ThemeMode.system, // Use system theme
       home: GameListScreen(),
     );
   }
@@ -62,9 +64,17 @@ class _GameListScreenState extends State<GameListScreen> {
         "url":
             "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Donkey-Kong-Country-Returns-HD-2590475.html",
       });
+      await platform.invokeMethod('writeEntry', {
+        "jsonFileName": file.path,
+        "url":
+            "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Download-Software/Disney-Dreamlight-Valley-2232608.html",
+      });
+      // await platform.invokeMethod('removeEntry', {
+      //   "jsonFileName": file.path,
+      //   "nsuid": "70010000084603",
+      // });
 
       String contents = await file.readAsString();
-
       // Parse the JSON string into a list of game objects
       List<dynamic> gameList = json.decode(contents);
 
@@ -88,18 +98,51 @@ class _GameListScreenState extends State<GameListScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Sale Notifier')),
-      body: ListView.builder(
-        itemCount: games.length,
-        itemBuilder: (context, index) {
-          return ListTile(
-            title: Text(games[index]['name'] ?? 'Unknown Game'),
-            subtitle: Text(
-              "Price: ${games[index]['price'] ?? 'N/A'}\nSale Status: ${games[index]['saleStatus'] ?? 'N/A'}",
-            ),
-            leading: Icon(Icons.videogame_asset),
-          );
-        },
-      ),
+      body:
+          games.isEmpty
+              ? Center(
+                child: CircularProgressIndicator(),
+              ) // Show loading indicator
+              : ListView.builder(
+                itemCount: games.length,
+                itemBuilder: (context, index) {
+                  final game = games[index];
+                  final isOnSale = game['saleStatus'] == "on sale";
+
+                  return Container(
+                    margin: EdgeInsets.symmetric(
+                      vertical: 4.0,
+                      horizontal: 8.0,
+                    ),
+                    decoration: BoxDecoration(
+                      color:
+                          isOnSale
+                              ? const Color.fromARGB(
+                                255,
+                                87,
+                                4,
+                                18,
+                              ).withAlpha(60)
+                              : Colors.transparent,
+                      border:
+                          isOnSale
+                              ? Border.all(
+                                color: Color.fromARGB(255, 87, 4, 18),
+                                width: 2.0,
+                              )
+                              : null,
+                      borderRadius: BorderRadius.circular(8.0),
+                    ),
+                    child: ListTile(
+                      title: Text(game['name'] ?? 'Unknown Game'),
+                      subtitle: Text(
+                        "Price: ${game['price'] ?? 'N/A'}\nSale Status: ${isOnSale ? 'on sale' : 'not on sale'}",
+                      ),
+                      leading: Icon(Icons.videogame_asset),
+                    ),
+                  );
+                },
+              ),
     );
   }
 }
