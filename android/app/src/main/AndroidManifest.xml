@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="sale_notifier_frontend"
+        android:label="sale_notifier_app"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
