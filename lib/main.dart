@@ -94,6 +94,38 @@ class GameListScreenState extends State<GameListScreen> {
     }
   }
 
+  Future<void> _textFieldHandler(String value) async {
+    // var logger = Logger();
+    logger.d("New URL $value");
+    try {
+    // final platform = MethodChannel('gonative_channel');
+    final directory = await getApplicationDocumentsDirectory();
+    File file = File("$directory/game_list.json"); // await _localFile;
+    await platform.invokeMethod('writeEntry', {
+        "jsonFileName": file.path,
+        "url": value,
+    });
+
+    String contents = await file.readAsString();
+      // Parse the JSON string into a list of game objects
+      List<dynamic> gameList = json.decode(contents);
+
+      setState(() {
+        // Convert the list of game data into a list of maps
+        games =
+            gameList.map((game) {
+              return {
+                'name': game['GameTitle'],
+                'price': game['DiscountedPrice'],
+                'saleStatus': game['IsDiscounted'],
+              };
+            }).toList();
+      });
+    } catch (e) {
+      logger.e("Error writing game data: $e");
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -130,6 +162,41 @@ class GameListScreenState extends State<GameListScreen> {
                   );
                 },
               ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _displayTextInputDialog(context),
+        backgroundColor: Colors.green,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+  final TextEditingController _textFieldController = TextEditingController();
+  Future<void> _displayTextInputDialog(BuildContext context) async {
+    return showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text('Add a new game'),
+          content: TextField(
+            controller: _textFieldController,
+            decoration: InputDecoration(hintText: "eShop URL"),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('CANCEL'),
+              onPressed: () {
+                Navigator.pop(context);
+              },
+            ),
+            TextButton(
+              child: Text('OK'),
+              onPressed: () {
+                _textFieldHandler(_textFieldController.text);
+                Navigator.pop(context);
+              },
+            ),
+          ],
+        );
+      },
     );
   }
 }
