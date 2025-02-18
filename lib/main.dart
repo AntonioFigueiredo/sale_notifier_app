@@ -101,10 +101,13 @@ class GameListScreenState extends State<GameListScreen> {
     // final platform = MethodChannel('gonative_channel');
     final directory = await getApplicationDocumentsDirectory();
     File file = File("$directory/game_list.json"); // await _localFile;
-    await platform.invokeMethod('writeEntry', {
+    if(value.isNotEmpty) {
+      await platform.invokeMethod('writeEntry', {
         "jsonFileName": file.path,
         "url": value,
-    });
+      });
+    }
+    
 
     String contents = await file.readAsString();
       // Parse the JSON string into a list of game objects
@@ -191,6 +194,7 @@ class GameListScreenState extends State<GameListScreen> {
               child: Text('OK'),
               onPressed: () {
                 _textFieldHandler(_textFieldController.text);
+                _textFieldController.clear();
                 Navigator.pop(context);
               },
             ),
