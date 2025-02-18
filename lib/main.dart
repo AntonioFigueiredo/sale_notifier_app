@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:flutter/services.dart' show rootBundle, MethodChannel;
+import 'package:flutter/services.dart' show rootBundle, MethodChannel, PlatformException;
 import 'package:path_provider/path_provider.dart';
 import 'package:logger/logger.dart';
 
@@ -59,11 +59,14 @@ class GameListScreenState extends State<GameListScreen> {
         await file.writeAsString('[]');
       }
 
-      await platform.invokeMethod('writeEntry', {
+      try {
+        await platform.invokeMethod('writeEntry', {
         "jsonFileName": file.path,
-        "url":
-            "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Donkey-Kong-Country-Returns-HD-2590475.html",
-      });
+        "url": "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Donkey-Kong-Country-Returns-HD-2590475.html",
+        });
+      } on PlatformException catch (e) {
+        logger.e("Failed to write entry: ${e.message}");
+      }
       await platform.invokeMethod('writeEntry', {
         "jsonFileName": file.path,
         "url":
@@ -97,17 +100,31 @@ class GameListScreenState extends State<GameListScreen> {
   Future<void> _textFieldHandler(String value) async {
     // var logger = Logger();
     logger.d("New URL $value");
+
+    // Regular expression to validate URL
+    final urlPattern = r'^(https?:\/\/)?([a-zA-Z0-9.-]+)\.([a-zA-Z]{2,6})([\/\w .-]*)*\/?$';
+    final isValidUrl = RegExp(urlPattern).hasMatch(value);
+
+    if (!isValidUrl) {
+      logger.e("Invalid URL: $value");
+      return;
+    }
+
     try {
     // final platform = MethodChannel('gonative_channel');
     final directory = await getApplicationDocumentsDirectory();
     File file = File("$directory/game_list.json"); // await _localFile;
-    if(value.isNotEmpty) {
-      await platform.invokeMethod('writeEntry', {
-        "jsonFileName": file.path,
-        "url": value,
-      });
+    if (value.isNotEmpty) {
+      try {
+        await platform.invokeMethod('writeEntry', {
+          "jsonFileName": file.path,
+          "url": value,
+        });
+      } on PlatformException catch (e) {
+        logger.e("Failed to write entry: ${e.message}");
+        return;
+      }
     }
-    
 
     String contents = await file.readAsString();
       // Parse the JSON string into a list of game objects
@@ -187,6 +204,7 @@ class GameListScreenState extends State<GameListScreen> {
             TextButton(
               child: Text('CANCEL'),
               onPressed: () {
+                _textFieldController.clear();
                 Navigator.pop(context);
               },
             ),

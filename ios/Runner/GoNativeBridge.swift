@@ -41,8 +41,12 @@ class GoNativeBridge: NSObject, FlutterPlugin {
             if let args = call.arguments as? [String: Any],
                let jsonFileName = args["jsonFileName"] as? String,
                let url = args["url"] as? String {
-                AppactionsWriteEntryToJSON(jsonFileName, url)
-                result(nil)
+                let success = AppactionsWriteEntryToJSON(jsonFileName, url)
+                if success {
+                    result(nil)
+                } else {
+                    result(FlutterError(code: "WRITE_ENTRY_FAILED", message: "Failed to write entry to JSON", details: nil))
+                }
             } else {
                 result(FlutterError(code: "INVALID_ARGUMENT", message: "JSON file name or URL is missing", details: nil))
             }
