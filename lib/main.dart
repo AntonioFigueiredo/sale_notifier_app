@@ -3,10 +3,9 @@ import 'package:flutter/material.dart';
 import 'dart:io';
 import 'package:flutter/services.dart' show rootBundle, MethodChannel;
 import 'package:path_provider/path_provider.dart';
+import 'package:logger/logger.dart';
 
-void main() {
-  runApp(SaleNotifierApp());
-}
+void main() => runApp(SaleNotifierApp());
 
 class SaleNotifierApp extends StatelessWidget {
   const SaleNotifierApp({super.key});
@@ -27,14 +26,15 @@ class GameListScreen extends StatefulWidget {
   const GameListScreen({super.key});
 
   @override
-  _GameListScreenState createState() => _GameListScreenState();
+  GameListScreenState createState() => GameListScreenState();
 }
 
 Future<String> loadAsset() async {
   return await rootBundle.loadString('assets/game_data.json');
 }
 
-class _GameListScreenState extends State<GameListScreen> {
+class GameListScreenState extends State<GameListScreen> {
+  var logger = Logger();
   static final platform = MethodChannel('gonative_channel');
   // Change the type to List<Map<String, dynamic>> for flexibility
   List<Map<String, dynamic>> games = [];
@@ -50,7 +50,7 @@ class _GameListScreenState extends State<GameListScreen> {
     try {
       final directory = await getApplicationDocumentsDirectory();
       File file = File("$directory/game_list.json"); // await _localFile;
-      print("File path: ${file.path}");
+      logger.d("File path: ${file.path}");
 
       // Check if the file exists, if not create it
       if (!await file.exists()) {
@@ -90,7 +90,7 @@ class _GameListScreenState extends State<GameListScreen> {
             }).toList();
       });
     } catch (e) {
-      print("Error loading game data: $e");
+      logger.e("Error loading game data: $e");
     }
   }
 
@@ -116,27 +116,14 @@ class _GameListScreenState extends State<GameListScreen> {
                     ),
                     decoration: BoxDecoration(
                       color:
-                          isOnSale
-                              ? const Color.fromARGB(
-                                255,
-                                87,
-                                4,
-                                18,
-                              ).withAlpha(60)
-                              : Colors.transparent,
+                          isOnSale ? const Color.fromARGB(255, 87, 4, 18).withAlpha(60) : Colors.transparent,
                       border:
-                          isOnSale
-                              ? Border.all(
-                                color: Color.fromARGB(255, 87, 4, 18),
-                                width: 2.0,
-                              )
-                              : null,
+                          isOnSale ? Border.all(color: Color.fromARGB(255, 87, 4, 18), width: 2.0,) : null,
                       borderRadius: BorderRadius.circular(8.0),
                     ),
                     child: ListTile(
                       title: Text(game['name'] ?? 'Unknown Game'),
-                      subtitle: Text(
-                        "Price: ${game['price'] ?? 'N/A'}\nSale Status: ${isOnSale ? 'on sale' : 'not on sale'}",
+                      subtitle: Text("Price: ${game['price'] ?? 'N/A'}\nSale Status: ${isOnSale ? 'on sale' : 'not on sale'}",
                       ),
                       leading: Icon(Icons.videogame_asset),
                     ),
