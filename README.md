@@ -1,2 +1,2 @@
 # SaleNotifierFrontend
-Frontend for [SaleNotifier](https://github.com/davidclarafigueiredo/SaleNotifier) made in [Flutter](https://github.com/flutter).
+Frontend for [SaleNotifier](https://github.com/AntonioFigueiredo/SaleNotifier) made in [Flutter](https://github.com/flutter).
