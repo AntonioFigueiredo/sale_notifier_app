@@ -33,6 +33,40 @@ Future<String> loadAsset() async {
   return await rootBundle.loadString('assets/game_data.json');
 }
 
+void writeEntry(String url) async {
+  final platform = MethodChannel('gonative_channel');
+  var logger = Logger();
+  final directory = await getApplicationDocumentsDirectory();
+  File file = File("$directory/game_list.json");
+    if (url.isNotEmpty) {
+      try {
+        await platform.invokeMethod('writeEntry', {
+          "jsonFileName": file.path,
+          "url": url,
+        });
+      } on PlatformException catch (e) {
+        logger.e("Failed to write entry: ${e.message}");
+      }
+    }
+}
+
+void removeEntry(String nsuid) async {
+  final platform = MethodChannel('gonative_channel');
+  var logger = Logger();
+  final directory = await getApplicationDocumentsDirectory();
+  File file = File("$directory/game_list.json");
+  if (nsuid.isNotEmpty) {
+    try {
+      await platform.invokeMethod('removeEntry', {
+        "jsonFileName": file.path,
+        "nsuid": nsuid,
+      });
+    } on PlatformException catch (e) {
+      logger.e("Failed to remove entry: ${e.message}");
+    }
+  }
+}
+
 class GameListScreenState extends State<GameListScreen> {
   var logger = Logger();
   static final platform = MethodChannel('gonative_channel');
@@ -42,60 +76,35 @@ class GameListScreenState extends State<GameListScreen> {
   @override
   void initState() {
     super.initState();
-    _loadGames();
+    _loadGameData();
   }
 
-  // Load the game data from the JSON file
-  Future<void> _loadGames() async {
+  Future<void> _loadGameData() async {
     try {
-      final directory = await getApplicationDocumentsDirectory();
-      File file = File("$directory/game_list.json"); // await _localFile;
-      logger.d("File path: ${file.path}");
+    final directory = await getApplicationDocumentsDirectory();
+    File file = File("$directory/game_list.json");
 
-      // Check if the file exists, if not create it
-      if (!await file.exists()) {
-        await file.create(recursive: true);
-        // Optionally, write initial content to the file
-        await file.writeAsString('[]');
-      }
+    // Check if the file exists, if not create it
+    if (!await file.exists()) {
+      await file.create(recursive: true);
+      // Optionally, write initial content to the file
+      await file.writeAsString('[]');
+    }
 
-      // try {
-      //   await platform.invokeMethod('writeEntry', {
-      //   "jsonFileName": file.path,
-      //   "url": "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Donkey-Kong-Country-Returns-HD-2590475.html",
-      //   });
-      // } on PlatformException catch (e) {
-      //   logger.e("Failed to write entry: ${e.message}");
-      // }
-      // await platform.invokeMethod('writeEntry', {
-      //   "jsonFileName": file.path,
-      //   "url":
-      //       "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Download-Software/Disney-Dreamlight-Valley-2232608.html",
-      // });
-      // await platform.invokeMethod('removeEntry', {
-      //   "jsonFileName": file.path,
-      //   "nsuid": "70010000084603",
-      // });
+    String contents = await file.readAsString();
+    List<dynamic> gameList = json.decode(contents);
 
-      String contents = await file.readAsString();
-      if (contents == "[]") {
-        logger.e("Game list is empty");
-        return;
-      }
-      // Parse the JSON string into a list of game objects
-      List<dynamic> gameList = json.decode(contents);
-
-      setState(() {
-        // Convert the list of game data into a list of maps
-        games =
-            gameList.map((game) {
-              return {
-                'name': game['GameTitle'],
-                'price': game['DiscountedPrice'],
-                'saleStatus': game['IsDiscounted'],
-              };
-            }).toList();
-      });
+    setState(() {
+      games =
+        gameList.map((game) {
+          return {
+            'name': game['GameTitle'],
+            'price': game['DiscountedPrice'],
+            'saleStatus': game['IsDiscounted'],
+            'nsuid': game['Nsuid'],
+          };
+        }).toList();
+    });
     } catch (e) {
       logger.e("Error loading game data: $e");
     }
@@ -114,40 +123,8 @@ class GameListScreenState extends State<GameListScreen> {
       return;
     }
 
-    try {
-    // final platform = MethodChannel('gonative_channel');
-    final directory = await getApplicationDocumentsDirectory();
-    File file = File("$directory/game_list.json"); // await _localFile;
-    if (value.isNotEmpty) {
-      try {
-        await platform.invokeMethod('writeEntry', {
-          "jsonFileName": file.path,
-          "url": value,
-        });
-      } on PlatformException catch (e) {
-        logger.e("Failed to write entry: ${e.message}");
-        return;
-      }
-    }
-
-    String contents = await file.readAsString();
-      // Parse the JSON string into a list of game objects
-      List<dynamic> gameList = json.decode(contents);
-
-      setState(() {
-        // Convert the list of game data into a list of maps
-        games =
-            gameList.map((game) {
-              return {
-                'name': game['GameTitle'],
-                'price': game['DiscountedPrice'],
-                'saleStatus': game['IsDiscounted'],
-              };
-            }).toList();
-      });
-    } catch (e) {
-      logger.e("Error writing game data: $e");
-    }
+    writeEntry(value);
+    _loadGameData();
   }
 
   @override
@@ -155,57 +132,72 @@ class GameListScreenState extends State<GameListScreen> {
     return Scaffold(
       appBar: AppBar(title: Text('Sale Notifier')),
       body:
-          games.isEmpty
-              ? Center(
-                child: Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Text(
-        "Press ",
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+      games.isEmpty ?
+      Center(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            "Press ",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.green, // Green background
+            ),
+            padding: EdgeInsets.all(6),
+            child: Icon(Icons.add, color: Colors.white, size: 20),
+          ),
+          Text(
+          " to add a new game",
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+          ),
+        ],
       ),
-      Container(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.green, // Green background
-        ),
-        padding: EdgeInsets.all(6),
-        child: Icon(Icons.add, color: Colors.white, size: 20),
-      ),
-      Text(
-        " to add a new game",
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
-      ),
-    ],
-  ),
-              )
-              : ListView.builder(
-                itemCount: games.length,
-                itemBuilder: (context, index) {
-                  final game = games[index];
-                  final isOnSale = game['saleStatus'] == "on sale";
+    )
+    : ListView.builder(
+        itemCount: games.length,
+        itemBuilder: (context, index) {
+          final game = games[index];
+          final isOnSale = game['saleStatus'] == "on sale";
 
-                  return Container(
-                    margin: EdgeInsets.symmetric(
-                      vertical: 4.0,
-                      horizontal: 8.0,
-                    ),
-                    decoration: BoxDecoration(
-                      color:
-                          isOnSale ? const Color.fromARGB(255, 87, 4, 18).withAlpha(60) : Colors.transparent,
-                      border:
-                          isOnSale ? Border.all(color: Color.fromARGB(255, 87, 4, 18), width: 2.0,) : null,
-                      borderRadius: BorderRadius.circular(8.0),
-                    ),
-                    child: ListTile(
-                      title: Text(game['name'] ?? 'Unknown Game'),
-                      subtitle: Text("Price: ${game['price'] ?? 'N/A'}\nSale Status: ${isOnSale ? 'on sale' : 'not on sale'}",
-                      ),
-                      leading: Icon(Icons.videogame_asset),
-                    ),
-                  );
-                },
+          return Dismissible(
+            key: Key(game['nsuid'] ?? index.toString()),  // Use nsuid as key if available
+            direction: DismissDirection.endToStart, // Swipe from right to left
+            background: Container(
+              alignment: Alignment.centerRight,
+              padding: EdgeInsets.symmetric(horizontal: 20),
+              color: Colors.red,
+              child: Icon(Icons.delete, color: Colors.white),
+            ),
+            onDismissed: (direction) {
+              removeEntry(game['nsuid']);
+              _loadGameData();
+              ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("${game['name']} removed")),
+              );
+            },
+            child: Container(
+              margin: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
+              decoration: BoxDecoration(
+                color: isOnSale
+                  ? const Color.fromARGB(255, 87, 4, 18).withAlpha(60)
+                  : Colors.transparent,
+                border: isOnSale
+                  ? Border.all(color: Color.fromARGB(255, 87, 4, 18), width: 2.0)
+                  : null,
+                borderRadius: BorderRadius.circular(8.0),
               ),
+              child: ListTile(
+                title: Text(game['name'] ?? 'Unknown Game'),
+                subtitle: Text("Price: ${game['price'] ?? 'N/A'}\nSale Status: ${isOnSale ? 'on sale' : 'not on sale'}",),
+                leading: Icon(Icons.videogame_asset),
+              ),
+            ),
+          );
+        },
+      ),
       floatingActionButton: FloatingActionButton(
         onPressed: () => _displayTextInputDialog(context),
         backgroundColor: Colors.green,
@@ -214,6 +206,7 @@ class GameListScreenState extends State<GameListScreen> {
       ),
     );
   }
+
   final TextEditingController _textFieldController = TextEditingController();
   Future<void> _displayTextInputDialog(BuildContext context) async {
     return showDialog(
