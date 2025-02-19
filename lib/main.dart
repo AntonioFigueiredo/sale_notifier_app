@@ -175,7 +175,11 @@ class GameListScreenState extends State<GameListScreen> {
               removeEntry(game['nsuid']);
               _loadGameData();
               ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("${game['name']} removed")),
+                SnackBar(
+                  content: Text("${game['name']} removed", style: TextStyle(color: Colors.white)),
+                  backgroundColor: Colors.red, // Red background
+                  duration: Duration(seconds: 1), // Show for 1 second
+                ),
               );
             },
             child: Container(
@@ -202,7 +206,7 @@ class GameListScreenState extends State<GameListScreen> {
         onPressed: () => _displayTextInputDialog(context),
         backgroundColor: Colors.green,
         shape: CircleBorder(),
-        child: const Icon(Icons.add, size: 35),
+        child: const Icon(Icons.add, size: 35, color: Colors.white),
       ),
     );
   }
