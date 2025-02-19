@@ -59,25 +59,29 @@ class GameListScreenState extends State<GameListScreen> {
         await file.writeAsString('[]');
       }
 
-      try {
-        await platform.invokeMethod('writeEntry', {
-        "jsonFileName": file.path,
-        "url": "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Donkey-Kong-Country-Returns-HD-2590475.html",
-        });
-      } on PlatformException catch (e) {
-        logger.e("Failed to write entry: ${e.message}");
-      }
-      await platform.invokeMethod('writeEntry', {
-        "jsonFileName": file.path,
-        "url":
-            "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Download-Software/Disney-Dreamlight-Valley-2232608.html",
-      });
+      // try {
+      //   await platform.invokeMethod('writeEntry', {
+      //   "jsonFileName": file.path,
+      //   "url": "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Donkey-Kong-Country-Returns-HD-2590475.html",
+      //   });
+      // } on PlatformException catch (e) {
+      //   logger.e("Failed to write entry: ${e.message}");
+      // }
+      // await platform.invokeMethod('writeEntry', {
+      //   "jsonFileName": file.path,
+      //   "url":
+      //       "https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Download-Software/Disney-Dreamlight-Valley-2232608.html",
+      // });
       // await platform.invokeMethod('removeEntry', {
       //   "jsonFileName": file.path,
       //   "nsuid": "70010000084603",
       // });
 
       String contents = await file.readAsString();
+      if (contents == "[]") {
+        logger.e("Game list is empty");
+        return;
+      }
       // Parse the JSON string into a list of game objects
       List<dynamic> gameList = json.decode(contents);
 
@@ -153,8 +157,28 @@ class GameListScreenState extends State<GameListScreen> {
       body:
           games.isEmpty
               ? Center(
-                child: CircularProgressIndicator(),
-              ) // Show loading indicator
+                child: Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(
+        "Press ",
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+      ),
+      Container(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: Colors.green, // Green background
+        ),
+        padding: EdgeInsets.all(6),
+        child: Icon(Icons.add, color: Colors.white, size: 20),
+      ),
+      Text(
+        " to add a new game",
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+      ),
+    ],
+  ),
+              )
               : ListView.builder(
                 itemCount: games.length,
                 itemBuilder: (context, index) {
@@ -185,7 +209,8 @@ class GameListScreenState extends State<GameListScreen> {
       floatingActionButton: FloatingActionButton(
         onPressed: () => _displayTextInputDialog(context),
         backgroundColor: Colors.green,
-        child: const Icon(Icons.add),
+        shape: CircleBorder(),
+        child: const Icon(Icons.add, size: 35),
       ),
     );
   }
