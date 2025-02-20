@@ -14,9 +14,9 @@ class SaleNotifierApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Sale Notifier',
-      theme: ThemeData.light(), // Light theme
-      darkTheme: ThemeData.dark(), // Dark theme
-      themeMode: ThemeMode.system, // Use system theme
+      theme: ThemeData.light(),
+      darkTheme: ThemeData.dark(),
+      themeMode: ThemeMode.system,
       home: GameListScreen(),
     );
   }
@@ -70,7 +70,6 @@ void removeEntry(String nsuid) async {
 class GameListScreenState extends State<GameListScreen> {
   var logger = Logger();
   static final platform = MethodChannel('gonative_channel');
-  // Change the type to List<Map<String, dynamic>> for flexibility
   List<Map<String, dynamic>> games = [];
 
   @override
@@ -84,10 +83,8 @@ class GameListScreenState extends State<GameListScreen> {
     final directory = await getApplicationDocumentsDirectory();
     File file = File("$directory/game_list.json");
 
-    // Check if the file exists, if not create it
     if (!await file.exists()) {
       await file.create(recursive: true);
-      // Optionally, write initial content to the file
       await file.writeAsString('[]');
     }
 
@@ -144,7 +141,7 @@ class GameListScreenState extends State<GameListScreen> {
           Container(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.green, // Green background
+              color: Colors.green,
             ),
             padding: EdgeInsets.all(6),
             child: Icon(Icons.add, color: Colors.white, size: 20),
@@ -163,8 +160,8 @@ class GameListScreenState extends State<GameListScreen> {
           final isOnSale = game['saleStatus'] == "on sale";
 
           return Dismissible(
-            key: Key(game['nsuid'] ?? index.toString()),  // Use nsuid as key if available
-            direction: DismissDirection.endToStart, // Swipe from right to left
+            key: Key(game['nsuid'] ?? index.toString()),
+            direction: DismissDirection.endToStart,
             background: Container(
               alignment: Alignment.centerRight,
               padding: EdgeInsets.symmetric(horizontal: 20),
@@ -177,8 +174,8 @@ class GameListScreenState extends State<GameListScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text("${game['name']} removed", style: TextStyle(color: Colors.white)),
-                  backgroundColor: Colors.red, // Red background
-                  duration: Duration(seconds: 1), // Show for 1 second
+                  backgroundColor: Colors.red,
+                  duration: Duration(seconds: 1),
                 ),
               );
             },

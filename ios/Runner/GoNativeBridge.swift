@@ -14,7 +14,7 @@ class GoNativeBridge: NSObject, FlutterPlugin {
         case "getInformation":
             if let args = call.arguments as? [String: Any],
                let namestr = args["url"] as? String {
-                let newValue = AppactionsGetInformation(namestr) // Ensure this matches the exported Appactions function
+                let newValue = AppactionsGetInformation(namestr)
                 result(newValue)
             } else {
                 result(FlutterError(code: "INVALID_ARGUMENT", message: "Name string is missing", details: nil))
