@@ -1,9 +1,11 @@
 import 'dart:convert';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'dart:io';
-import 'package:flutter/services.dart' show rootBundle, MethodChannel, PlatformException;
+import 'package:flutter/services.dart' show MethodChannel, PlatformException;
 import 'package:path_provider/path_provider.dart';
 import 'package:logger/logger.dart';
+import 'package:synchronized/synchronized.dart';
 
 void main() => runApp(SaleNotifierApp());
 
@@ -29,113 +31,283 @@ class GameListScreen extends StatefulWidget {
   GameListScreenState createState() => GameListScreenState();
 }
 
-Future<String> loadAsset() async {
-  return await rootBundle.loadString('assets/game_data.json');
-}
-
-void writeEntry(String url) async {
-  final platform = MethodChannel('gonative_channel');
-  var logger = Logger();
-  final directory = await getApplicationDocumentsDirectory();
-  File file = File("$directory/game_list.json");
-    if (url.isNotEmpty) {
-      try {
-        await platform.invokeMethod('writeEntry', {
-          "jsonFileName": file.path,
-          "url": url,
-        });
-      } on PlatformException catch (e) {
-        logger.e("Failed to write entry: ${e.message}");
-      }
-    }
-}
-
-void removeEntry(String nsuid) async {
-  final platform = MethodChannel('gonative_channel');
-  var logger = Logger();
-  final directory = await getApplicationDocumentsDirectory();
-  File file = File("$directory/game_list.json");
-  if (nsuid.isNotEmpty) {
-    try {
-      await platform.invokeMethod('removeEntry', {
-        "jsonFileName": file.path,
-        "nsuid": nsuid,
-      });
-    } on PlatformException catch (e) {
-      logger.e("Failed to remove entry: ${e.message}");
-    }
-  }
-}
-
 class GameListScreenState extends State<GameListScreen> {
-  var logger = Logger();
-  static final platform = MethodChannel('gonative_channel');
+  final _fileLock = Lock();
+  final _textFieldController = TextEditingController();
+  final _logger = Logger();
+  // static const _urlPattern = r'^(https?:\/\/)?([\w-]+\.)+[\w-]+(\/[\w- .\/?%&=]*)?$';
+
+  late File _gameFile;
   List<Map<String, dynamic>> games = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadGameData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeApp().catchError((e) {
+        _logger.e("Initialization error: $e");
+        setState(() => _isLoading = false);
+      });
+    });
+  }
+
+  Future<void> _initializeApp() async {
+    _logger.i("Initialization started");
+    try {
+      await _fileLock.synchronized(() async {
+        await _setupFile();
+        _logger.i("File setup complete");
+        await createTestData();
+        _logger.i("Test data created");
+        await _loadGameData();
+        _logger.i("Initialization complete");
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _setupFile() async {
+    final directory = await getApplicationDocumentsDirectory();
+    _gameFile = File("${directory.path}/game_list.json");
+    
+    if (!await _gameFile.exists()) {
+      await _gameFile.create(recursive: true);
+      await _gameFile.writeAsString('[]');
+    }
   }
 
   Future<void> _loadGameData() async {
+
+    _logger.i("Loading game data from ${_gameFile.path}");
     try {
-    final directory = await getApplicationDocumentsDirectory();
-    File file = File("$directory/game_list.json");
 
-    if (!await file.exists()) {
-      await file.create(recursive: true);
-      await file.writeAsString('[]');
-    }
+      String contents = await _gameFile.readAsString();
+      if (contents.isEmpty) return;
 
-    String contents = await file.readAsString();
-    List<dynamic> gameList = json.decode(contents);
+      final gameList = json.decode(contents) as List<dynamic>;
+      setState(() {
+        // Sort games: on sale first
+        gameList.sort((a, b) {
+          final aOnSale = a['IsDiscounted'] == "on sale" ?  true : false;
+          final bOnSale = b['IsDiscounted'] == "on sale" ?  true : false;
+          
+          // If both are on sale or not, maintain original order
+          if (aOnSale == bOnSale) return 0;
+          
+          // Sort on sale items first
+          return aOnSale ? -1 : 1;
+        });
 
-    setState(() {
-      games =
-        gameList.map((game) {
-          return {
-            'name': game['GameTitle'],
-            'price': game['DiscountedPrice'],
-            'saleStatus': game['IsDiscounted'],
-            'nsuid': game['Nsuid'],
-          };
-        }).toList();
+        // Map to final list
+        games = gameList.map<Map<String, dynamic>>((game) => ({
+          'name': game['GameTitle'],
+          'price': game['DiscountedPrice'],
+          'saleStatus': game['IsDiscounted'],
+          'nsuid': game['Nsuid'],
+      })).toList();
     });
     } catch (e) {
-      logger.e("Error loading game data: $e");
+      _logger.e("Error loading game data: $e");
     }
   }
 
-  Future<void> _textFieldHandler(String value) async {
-    // var logger = Logger();
-    logger.d("New URL $value");
+  Future<bool> _writeEntry(String url) async {
+    if (url.isNotEmpty) {
+      try {
+        await MethodChannel('gonative_channel').invokeMethod('writeEntry', {
+          "jsonFileName": _gameFile.path,
+          "url": url,
+        });
+      } on PlatformException catch (e) {
+        _logger.e("Failed to write entry: ${e.message}");
+        return false;
+      }
+    }
+    return true;
+  }
 
-    // Regular expression to validate URL
-    final urlPattern = r'^(https?:\/\/)?([a-zA-Z0-9.-]+)\.([a-zA-Z]{2,6})([\/\w .-]*)*\/?$';
-    final isValidUrl = RegExp(urlPattern).hasMatch(value);
+  Future<void> _removeEntry(String nsuid) async {
+    await _fileLock.synchronized(() async {
+      try {
+        await MethodChannel('gonative_channel').invokeMethod('removeEntry', {
+          "jsonFileName": _gameFile.path,
+          "nsuid": nsuid,
+        });
+      } on PlatformException catch (e) {
+        _logger.e("Remove failed: ${e.message}");
+      }
+    });
+  }
 
-    if (!isValidUrl) {
-      logger.e("Invalid URL: $value");
-      return;
+  Future<bool> _writeTestEntry(String url) async {
+    if (url.isNotEmpty) {
+      try {
+        await MethodChannel('gonative_channel').invokeMethod('writeTestEntry', {
+          "jsonFileName": _gameFile.path,
+          "url": url,
+        });
+      } on PlatformException catch (e) {
+        _logger.e("Failed to write test entry: ${e.message}");
+        return false;
+      }
+    }
+    return true;
+  }
+
+  Future<bool> _updateSingleGameData(String url) async {
+    _logger.d("Updating game data for URL: $url");
+    bool changedToSale = false;
+    try {
+      changedToSale = await MethodChannel('gonative_channel').invokeMethod(
+        'updateEntry',
+        {
+          "jsonFileName": _gameFile.path,
+          "url": url,
+        },
+      );
+    } on PlatformException catch (e) {
+      _logger.e("Update failed for URL $url: ${e.message}");
+      return false;
+    }
+    if(changedToSale){
+      _logger.i("Game on sale: $url");
+    }
+    return true;
+  }
+
+  Future<void> _updateAllGameData() async {
+    _logger.d("Updating all game data");
+    try {
+      String contents = await _gameFile.readAsString();
+      if (contents.isEmpty) return;
+
+    final gameList = json.decode(contents) as List<dynamic>;
+      
+      for (final game in gameList) {
+        final url = game['Url']?.toString();
+        if (url != null && url.isNotEmpty) {
+          await _updateSingleGameData(url);
+        }
+      }
+    } catch (e) {
+      _logger.e("Error updating game data: $e");
+    }
+  }
+
+  Future<bool> createTestData() async {
+
+    await _writeEntry("https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Donkey-Kong-Country-Returns-HD-2590475.html");
+    await _writeEntry("https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Hogwarts-Legacy-2466200.html");
+    await _writeTestEntry("https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Mario-Rabbids-Sparks-of-Hope-1986931.html");
+    await _writeTestEntry("https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Download-Software/Disney-Dreamlight-Valley-2232608.html");
+    await _writeTestEntry("https://www.nintendo.com/de-de/Spiele/Nintendo-Switch-Spiele/Mario-Luigi-Brothership-2590264.html");
+
+    return true;
+  }
+
+  Future<void> _handleRefresh() async {
+    _logger.d("Refreshing game data");
+    Completer<void> completer = Completer<void>();
+
+    try {
+      await _fileLock.synchronized(() async {
+        await _updateAllGameData();
+        await _loadGameData();
+        if (mounted) completer.complete();
+      });
+    } catch (e) {
+      _logger.e("Refresh error: $e");
+      if (mounted) {
+        completer.complete();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Refresh failed: ${e.toString()}'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
     }
 
-    writeEntry(value);
-    _loadGameData();
+    return completer.future;
+  }
+
+  Future<void> _textFieldHandler(String value) async {
+  final urlPattern = r'^(https?:\/\/)?([a-zA-Z0-9.-]+)\.([a-zA-Z]{2,6})([\/\w .-]*)*\/?$';
+  final isValidUrl = RegExp(urlPattern).hasMatch(value);
+
+  if (!isValidUrl) {
+    _logger.e("Invalid URL: $value");
+    return;
+  }
+
+  try {
+    setState(() => _isLoading = true);
+    _logger.d("Processing URL: $value");
+
+    await _fileLock.synchronized(() async {
+      await _writeEntry(value);
+      await _loadGameData();
+    });
+    
+    _logger.i("Successfully processed URL: $value");
+    } catch (e, stackTrace) {
+      _logger.e("Error handling URL input", error: e, stackTrace: stackTrace);
+      rethrow;
+    } finally {
+      if (mounted) setState(() => _isLoading = false); // Hide loading
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text('Sale Notifier')),
-      body:
-      games.isEmpty ?
-      Center(
+      body: _isLoading
+          ? _buildLoadingScreen()
+          : games.isEmpty
+            ? _buildEmptyState()
+            : _buildGameList(),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => _displayTextInputDialog(context),
+        backgroundColor: Colors.green,
+        shape: CircleBorder(),
+        child: const Icon(Icons.add, size: 35, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _buildLoadingScreen() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(
+            strokeWidth: 4,
+            valueColor: AlwaysStoppedAnimation<Color>(Colors.green),
+          ),
+          const SizedBox(height: 20),
+          // Text(
+          //   "Loading Games...",
+          //   style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          //         color: Colors.grey[600],
+          //       ),
+          // ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            "Press ",
+            "Tap ",
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
           ),
           Container(
@@ -147,15 +319,23 @@ class GameListScreenState extends State<GameListScreen> {
             child: Icon(Icons.add, color: Colors.white, size: 20),
           ),
           Text(
-          " to add a new game",
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
+            " to add a new game",
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500),
           ),
         ],
       ),
-    )
-    : ListView.builder(
-        itemCount: games.length,
-        itemBuilder: (context, index) {
+    );
+  }
+
+  Widget _buildGameList() {
+    return RefreshIndicator(
+        onRefresh: _handleRefresh,
+        color: Colors.green,
+        edgeOffset: 20,
+        child: ListView.builder(
+          physics: const AlwaysScrollableScrollPhysics(),
+          itemCount: games.length,
+          itemBuilder: (context, index) {
           final game = games[index];
           final isOnSale = game['saleStatus'] == "on sale";
 
@@ -168,9 +348,9 @@ class GameListScreenState extends State<GameListScreen> {
               color: Colors.red,
               child: Icon(Icons.delete, color: Colors.white),
             ),
-            onDismissed: (direction) {
-              removeEntry(game['nsuid']);
-              _loadGameData();
+            onDismissed: (direction) async {
+              await _removeEntry(game['nsuid']);
+              await _loadGameData();
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text("${game['name']} removed", style: TextStyle(color: Colors.white)),
@@ -183,32 +363,27 @@ class GameListScreenState extends State<GameListScreen> {
               margin: EdgeInsets.symmetric(vertical: 4.0, horizontal: 8.0),
               decoration: BoxDecoration(
                 color: isOnSale
-                  ? const Color.fromARGB(255, 87, 4, 18).withAlpha(60)
-                  : Colors.transparent,
+                    ? const Color.fromARGB(255, 87, 4, 18).withAlpha(60)
+                    : Colors.transparent,
                 border: isOnSale
-                  ? Border.all(color: Color.fromARGB(255, 87, 4, 18), width: 2.0)
-                  : null,
+                    ? Border.all(color: Color.fromARGB(255, 87, 4, 18), width: 2.0)
+                    : null,
                 borderRadius: BorderRadius.circular(8.0),
               ),
               child: ListTile(
                 title: Text(game['name'] ?? 'Unknown Game'),
-                subtitle: Text("Price: ${game['price'] ?? 'N/A'}\nSale Status: ${isOnSale ? 'on sale' : 'not on sale'}",),
+                subtitle: Text(
+                  "Price: ${game['price'] ?? 'N/A'}\nSale Status: ${isOnSale ? 'on sale' : 'not on sale'}",
+                ),
                 leading: Icon(Icons.videogame_asset),
               ),
             ),
           );
         },
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _displayTextInputDialog(context),
-        backgroundColor: Colors.green,
-        shape: CircleBorder(),
-        child: const Icon(Icons.add, size: 35, color: Colors.white),
-      ),
     );
   }
 
-  final TextEditingController _textFieldController = TextEditingController();
   Future<void> _displayTextInputDialog(BuildContext context) async {
     return showDialog(
       context: context,

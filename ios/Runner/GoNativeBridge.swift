@@ -12,43 +12,81 @@ class GoNativeBridge: NSObject, FlutterPlugin {
     func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
         case "getInformation":
-            if let args = call.arguments as? [String: Any],
-               let namestr = args["url"] as? String {
-                let newValue = AppactionsGetInformation(namestr)
-                result(newValue)
-            } else {
-                result(FlutterError(code: "INVALID_ARGUMENT", message: "Name string is missing", details: nil))
+            guard let args = call.arguments as? [String: Any],
+            let url = args["url"] as? String else {
+                result(FlutterError(code: "INVALID_ARGUMENT", message: "URL is missing", details: nil))
+                return
+            }
+    
+            DispatchQueue.global(qos: .userInitiated).async {
+                let newValue = AppactionsGetInformation(url)
+                DispatchQueue.main.async {
+                    result(newValue)
+                }
             }
         case "removeEntry":
-            if let args = call.arguments as? [String: Any],
-               let jsonFileName = args["jsonFileName"] as? String,
-               let nsuid = args["nsuid"] as? String {
+            guard let args = call.arguments as? [String: Any],
+            let jsonFileName = args["jsonFileName"] as? String,
+            let nsuid = args["nsuid"] as? String else {
+                result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing parameters", details: nil))
+                return
+            }
+    
+            DispatchQueue.global(qos: .userInitiated).async {
                 AppactionsRemoveEntryFromJSON(jsonFileName, nsuid)
-                result(nil)
-            } else {
-                result(FlutterError(code: "INVALID_ARGUMENT", message: "JSON file name or NSUID is missing", details: nil))
+                DispatchQueue.main.async {
+                    result(nil)
+                }
             }
         case "updateEntry":
-            if let args = call.arguments as? [String: Any],
-               let jsonFileName = args["jsonFileName"] as? String,
-               let url = args["url"] as? String {
+            guard let args = call.arguments as? [String: Any],
+            let jsonFileName = args["jsonFileName"] as? String,
+            let url = args["url"] as? String else {
+                result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing parameters", details: nil))
+                return
+            }
+        
+            DispatchQueue.global(qos: .userInitiated).async {
                 let success = AppactionsUpdateJSONEntry(jsonFileName, url)
-                result(success)
-            } else {
-                result(FlutterError(code: "INVALID_ARGUMENT", message: "JSON file name or URL is missing", details: nil))
+                DispatchQueue.main.async {
+                    result(success)
+                }
             }
         case "writeEntry":
-            if let args = call.arguments as? [String: Any],
-               let jsonFileName = args["jsonFileName"] as? String,
-               let url = args["url"] as? String {
+            guard let args = call.arguments as? [String: Any],
+            let jsonFileName = args["jsonFileName"] as? String,
+            let url = args["url"] as? String else {
+                result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing parameters", details: nil))
+                return
+            }
+        
+            DispatchQueue.global(qos: .userInitiated).async {
                 let success = AppactionsWriteEntryToJSON(jsonFileName, url)
-                if success {
-                    result(nil)
-                } else {
-                    result(FlutterError(code: "WRITE_ENTRY_FAILED", message: "Failed to write entry to JSON", details: nil))
+                DispatchQueue.main.async {
+                    if success {
+                        result(nil)
+                    } else {
+                        result(FlutterError(code: "WRITE_FAILED", message: "Failed to write entry", details: nil))
+                    }
                 }
-            } else {
-                result(FlutterError(code: "INVALID_ARGUMENT", message: "JSON file name or URL is missing", details: nil))
+            }
+        case "writeTestEntry":
+            guard let args = call.arguments as? [String: Any],
+            let jsonFileName = args["jsonFileName"] as? String,
+            let url = args["url"] as? String else {
+                result(FlutterError(code: "INVALID_ARGUMENT", message: "Missing parameters", details: nil))
+                return
+            }
+        
+            DispatchQueue.global(qos: .userInitiated).async {
+                let success = AppactionsWriteTestEntryToJSON(jsonFileName, url)
+                DispatchQueue.main.async {
+                    if success {
+                        result(nil)
+                    } else {
+                        result(FlutterError(code: "WRITE_TEST_FAILED", message: "Failed to write test entry", details: nil))
+                    }
+                }
             }
         default:
             result(FlutterMethodNotImplemented)

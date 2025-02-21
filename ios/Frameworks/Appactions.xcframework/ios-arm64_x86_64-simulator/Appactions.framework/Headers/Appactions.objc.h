@@ -36,4 +36,6 @@ FOUNDATION_EXPORT BOOL AppactionsUpdateJSONEntry(NSString* _Nullable jsonFileNam
 
 FOUNDATION_EXPORT BOOL AppactionsWriteEntryToJSON(NSString* _Nullable jsonFileName, NSString* _Nullable url);
 
+FOUNDATION_EXPORT BOOL AppactionsWriteTestEntryToJSON(NSString* _Nullable jsonFileName, NSString* _Nullable url);
+
 #endif
